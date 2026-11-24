@@ -1,0 +1,28 @@
+@startuml
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam dpi 220
+
+state "查询该通道推送键" as Inspect
+state "跳过（不发送）" as Skip
+state "重发一次\n并标注可能重复" as Retry
+state "正常发送" as Send
+state "sending\n（已写库，等待结果）" as Sending
+state "success" as Success
+state "failed" as Failed
+state "未知\n（崩溃残留 sending）" as Unknown
+
+[*] --> Inspect
+Inspect --> Skip : 分支 1：同键存在 success（优先）
+Inspect --> Retry : 分支 2：无 success 且存在 sending
+Inspect --> Send : 分支 3：仅有 failed、仅有 failed 与 superseded 并存，或无记录
+Inspect --> Send : 分支 3：仅有 superseded 且无 success → 按无记录发送并记 WARN
+Skip --> [*]
+Retry --> Sending
+Send --> Sending
+Sending --> Success : 分支 2 成功后，只结清旧 sending 为 superseded。\n分支 3 成功后，结清 failed / sending / superseded 全部旧残留为 superseded。
+Sending --> Failed : 发送失败，记录原因
+Sending --> Unknown : 进程崩溃
+Unknown --> Inspect : 同日重跑
+Success --> [*]
+Failed --> [*]
+@enduml

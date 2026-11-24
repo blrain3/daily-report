@@ -1,0 +1,63 @@
+@startuml
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam dpi 220
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam roundcorner 6
+
+package "运行保障层" as run {
+  [调度与包装脚本\n(cron / systemd) + 退出码告警] as job
+  [运行编排\n取锁 / 时序 / 状态机] as orch
+  [工作日与节假日判定] as cal
+}
+package "配置层" as cfg {
+  [配置加载与校验\n三份 YAML / 环境变量引用] as load
+}
+package "采集层" as col {
+  [GitHub 采集] as gh
+  [飞书任务采集] as ft
+  [飞书消息采集] as fm
+}
+package "归属与去重层" as map {
+  [归属映射\nopen_id / 登录名 → 成员] as mm
+  [item_key 去重] as dedup
+  [水位推进（同事务）] as wm
+}
+package "渲染层" as rendering {
+  [日报渲染\nMarkdown 版本文件 / HTML 邮件正文] as rnd
+}
+package "推送层" as delivery {
+  [推送判定与幂等] as push
+}
+database "SQLite" as db {
+  [run] as t1
+  [source_state] as t2
+  [seen_item] as t3
+  [report_version] as t4
+  [push_log] as t5
+}
+cloud "外部服务" as ext {
+  [GitHub API] as gapi
+  [飞书开放平台] as fapi
+  [SMTP] as smtp
+  [飞书群机器人] as bot
+}
+
+job --> orch
+orch --> cal
+cal --> cfg
+orch --> cfg
+orch --> col
+orch --> map
+orch --> rnd
+orch --> push
+col --> cfg
+col --> ext
+col --> map
+map --> cfg
+map --> db
+rnd --> db
+rnd --> push : 待发送正文
+push --> db
+push --> ext
+@enduml

@@ -1,0 +1,45 @@
+@startuml
+skinparam defaultFontName "Noto Sans CJK SC"
+skinparam dpi 220
+autonumber
+participant "调度包装脚本" as J
+participant "运行编排" as R
+participant "SQLite" as D
+participant "采集接口" as S
+participant "渲染与文件" as F
+participant "推送通道" as P
+
+J -> R : 启动，冻结 started_at，判定工作日
+R -> R : 获取排他锁，自检接口能力
+alt 非工作日或启动失败
+  R --> J : 跳过或返回启动错误
+else 可以执行
+  R -> D : 独立事务写入 run(status='running')
+  R -> D : 扫描历史未出报的报告日
+  opt 存在待补渲染日期
+    R -> F : 按历史报告日补渲染新版本
+    R -> D : 记录补渲染事项，纳入告警
+  end
+  R -> D : 读取三源水位
+  par GitHub
+    R -> S : 拉取提交
+  else 飞书任务
+    R -> S : 拉取任务事件
+  else 飞书消息
+    R -> S : 拉取白名单群消息
+  end
+  S --> R : 各源结果（超时源标记失败）
+  alt 可出报
+    R -> D : 同事务：插入 seen_item + 推进成功源水位
+    R -> F : 按首次入库报告日全量渲染，落盘 v{N}
+    R -> P : 按通道有序判定并发送
+    R -> D : 更新 run 终态与 push_log
+  else 放弃出报
+    R -> D : 保留水位，立即写 run(status='failed')
+  end
+  R --> J : 释放锁，返回退出码
+end
+opt 退出码非 0
+  J -> P : 按独立告警目标通知运维
+end
+@enduml
