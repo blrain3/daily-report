@@ -1,0 +1,21 @@
+# 运行产物
+data/
+reports/
+logs/
+*.db
+*.sqlite
+
+# 本地配置与凭据
+.env
+config/config.yaml
+members.yaml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 办公临时文件
+~$*
+.DS_Store
